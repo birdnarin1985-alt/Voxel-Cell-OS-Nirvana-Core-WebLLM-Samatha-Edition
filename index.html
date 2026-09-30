@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Voxel OS: Ultimate Adaptive Core</title>
+    <style>
+        :root {
+            --bg-color: #010203;
+            --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(0, 243, 255, 0.02));
+            --glass-border: 1px solid rgba(0, 243, 255, 0.2);
+            --cyan-core: #00f3ff; --gold-core: #f39c12; --alert-core: #e74c3c;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg-color); font-family: 'Segoe UI', Tahoma, sans-serif; color: white; user-select: none; touch-action: none; }
+        
+        #webgl-canvas { position: absolute; top: 0; left: 0; z-index: 1; width: 100%; height: 100%; }
+        
+        /* 💎 SHADOW DOM (The Layout Oracle) */
+        #shadow-dom {
+            position: absolute; top: -9999px; left: -9999px; 
+            width: 320px; font-size: 24px; font-weight: bold; line-height: 1.5;
+            word-wrap: break-word; color: white; visibility: hidden;
+        }
+
+        /* 💎 ULTRA GLASSMORPHISM UI */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; }
+        .top-bar { display: flex; justify-content: space-between; pointer-events: auto; }
+        .glass-pill { background: rgba(0,0,0,0.3); border: var(--glass-border); padding: 8px 16px; border-radius: 20px; font-size: 0.75rem; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 4px 15px rgba(0,0,0,0.5); font-weight: bold; transition: color 0.3s; }
+        
+        .hud-panel {
+            background: var(--glass-bg); border: var(--glass-border); border-top: 1px solid rgba(255,255,255,0.15); border-radius: 24px;
+            padding: 20px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); pointer-events: auto;
+            max-width: 420px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 12px;
+        }
+        .header { display: flex; justify-content: space-between; align-items: center; color: var(--gold-core); font-weight: bold; text-shadow: 0 0 10px var(--gold-core); border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        
+        .model-identity { font-family: 'Courier New', monospace; font-size: 0.7rem; color: #aaa; text-align: center; padding: 6px; border: 1px dashed rgba(255,255,255,0.2); border-radius: 12px; margin-bottom: 5px; }
+
+        .progress-box { display: flex; flex-direction: column; gap: 4px; }
+        .progress-text { display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--cyan-core); font-family: 'Courier New', monospace; }
+        .progress-track { width: 100%; height: 4px; background: rgba(0,0,0,0.5); border-radius: 2px; overflow: hidden; }
+        .progress-fill { width: 0%; height: 100%; background: var(--cyan-core); box-shadow: 0 0 10px var(--cyan-core); transition: width 0.3s; }
+
+        .btn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .btn-glass { 
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: white; 
+            padding: 12px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; cursor: pointer; transition: all 0.3s; 
+            text-shadow: 0 0 5px rgba(255,255,255,0.5);
+        }
+        .btn-glass:hover { background: rgba(0, 243, 255, 0.15); border-color: var(--cyan-core); box-shadow: 0 0 15px rgba(0,243,255,0.3); }
+        .btn-glass.active { background: rgba(243, 156, 18, 0.2); border-color: var(--gold-core); color: var(--gold-core); text-shadow: 0 0 10px var(--gold-core); }
+
+        .ai-input-group { display: flex; gap: 8px; }
+        .glass-input { flex: 1; background: rgba(0,0,0,0.4); border: var(--glass-border); border-radius: 12px; padding: 10px; color: var(--cyan-core); font-size: 0.75rem; outline: none; }
+        .glass-input:focus { border-color: var(--cyan-core); box-shadow: 0 0 10px rgba(0,243,255,0.2); }
+
+        .log-box { font-family: 'Courier New', monospace; font-size: 0.65rem; color: #ccc; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 10px; height: 70px; overflow-y: auto; border-left: 2px solid var(--cyan-core); }
+        .log-error { color: var(--alert-core); font-weight: bold; }
+    </style>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.150.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.150.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <canvas id="webgl-canvas"></canvas>
+    <div id="shadow-dom"></div>
+
+    <div id="ui-layer">
+        <div class="top-bar">
+            <div class="glass-pill" style="color:var(--cyan-core);">Voxel OS : Nirvana Core</div>
+            <div class="glass-pill" id="telemetry">FPS: -- | MEM: --</div>
+        </div>
+
+        <div class="hud-panel">
+            <div class="header">🪷 SPATIAL AI GRAPH</div>
+            
+            <!-- 💎 แสดงสถานะโมเดลที่แท้จริง -->
+            <div class="model-identity" id="hud-model-name">🧠 CORE: Scanning Environments...</div>
+
+            <div class="progress-box">
+                <div class="progress-text">
+                    <span id="load-label">Initialize Quantum State...</span>
+                    <span id="load-pct">0%</span>
+                </div>
+                <div class="progress-track"><div class="progress-fill" id="load-bar"></div></div>
+            </div>
+            
+            <div class="btn-grid">
+                <button class="btn-glass active" id="btn-zen" onclick="switchState('ZEN')">🧘‍♂️ ฌาน (Torus)</button>
+                <button class="btn-glass" id="btn-mag" onclick="switchState('MAGAZINE')">📖 โฮโลแกรม PDF</button>
+            </div>
+
+            <div class="ai-input-group">
+                <input type="text" id="ai-prompt" class="glass-input" placeholder="ส่งกระแสจิตสอบถาม AI...">
+                <button class="btn-glass" style="color:var(--cyan-core); border-color:var(--cyan-core);" onclick="sendPrompt()">ส่งจิต</button>
+            </div>
+
+            <div class="log-box" id="sys-log"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+        // --- GLOBAL LOGIC ---
+        const SYS = { state: 'ZEN', logs: [], aiEngine: null, activeModel: null, isFallback: true };
+        
+        function logMsg(msg, isError = false) {
+            const t = new Date().toLocaleTimeString();
+            SYS.logs.push({ t, msg, isError }); 
+            if(SYS.logs.length > 5) SYS.logs.shift();
+            const logEl = document.getElementById('sys-log');
+            logEl.innerHTML = SYS.logs.map(l => `<div class="${l.isError ? 'log-error' : ''}">[${l.t}] ${l.msg}</div>`).join('');
+            logEl.scrollTop = logEl.scrollHeight;
+            if(isError) console.error(`[VoxelOS] ${msg}`); else console.log(`[VoxelOS] ${msg}`);
+        }
+        window.logMsg = logMsg;
+
+        // --- ADAPTIVE AI ALGORITHM (มรรคแห่งสายน้ำ) ---
+        const modelCandidates = [
+            "Llama-3.2-3B-Instruct-q4f32_1-MLC",
+            "Llama-3.2-1B-Instruct-q4f32_1-MLC",
+            "Phi-3-mini-4k-instruct-q4f16_1-MLC",
+            "Llama-3-8B-Instruct-q4f32_1-MLC"
+        ];
+
+        async function initAdaptiveWebLLM() {
+            const label = document.getElementById('load-label');
+            const pct = document.getElementById('load-pct');
+            const bar = document.getElementById('load-bar');
+            const identity = document.getElementById('hud-model-name');
+
+            for (let modelId of modelCandidates) {
+                try {
+                    logMsg(`ทดสอบอัญเชิญโมเดล: ${modelId.substring(0, 20)}...`);
+                    identity.innerText = `🧠 PROBING: ${modelId.substring(0, 15)}...`;
+
+                    // ใช้ CreateMLCEngine ตาม API โครงสร้างล่าสุด
+                    SYS.aiEngine = await webllm.CreateMLCEngine(modelId, {
+                        initProgressCallback: (report) => {
+                            let match = report.text.match(/(\d+)(%)/);
+                            let val = match ? match[1] : 50;
+                            pct.innerText = `${val}%`; bar.style.width = `${val}%`;
+                            label.innerText = report.text.substring(0, 30);
+                        }
+                    });
+
+                    // ถ้ารอดมาถึงบรรทัดนี้ได้ แปลว่าเครื่องรองรับโมเดลนี้!
+                    SYS.activeModel = modelId;
+                    SYS.isFallback = false;
+                    break; // หลุดจากลูปทันที
+                } catch (err) {
+                    logMsg(`ข้าม ${modelId} -> ${err.message.substring(0, 30)}`, true);
+                }
+            }
+
+            if (SYS.activeModel) {
+                logMsg(`เชื่อมต่อสมองกลสำเร็จ: ${SYS.activeModel}`);
+                identity.innerText = `🧠 ACTIVE CORE: ${SYS.activeModel}`;
+                identity.style.color = "var(--cyan-core)";
+                identity.style.borderColor = "var(--cyan-core)";
+                label.innerText = "Quantum State: TRANSCENDED";
+            } else {
+                logMsg("WebGPU ปฏิเสธทุกโมเดล -> เข้าสู่โหมดสมถะ", true);
+                identity.innerText = `🧠 CORE: Fallback Simulation`;
+                identity.style.color = "var(--gold-core)";
+                identity.style.borderColor = "var(--gold-core)";
+                label.innerText = "Quantum State: FALLBACK";
+                pct.innerText = "100%"; bar.style.width = "100%"; bar.style.background = "var(--gold-core)";
+            }
+        }
+
+        window.sendPrompt = async () => {
+            const input = document.getElementById('ai-prompt');
+            const text = input.value.trim();
+            if(!text) return;
+            logMsg(`> User: ${text}`);
+            input.value = '';
+
+            if(SYS.activeModel && SYS.aiEngine) {
+                try {
+                    const reply = await SYS.aiEngine.chat.completions.create({
+                        messages: [{ role: "user", content: `ตอบสั้นๆ: ${text}` }]
+                    });
+                    const ans = reply.choices[0].message.content;
+                    logMsg(`AI: ${ans}`);
+                    // นำข้อความที่ AI ตอบ ไปแสดงเป็น Voxel Typography!
+                    if(SYS.state === 'MAGAZINE') bakeTextToVoxels(ans);
+                } catch(e) { logMsg("AI Error", true); }
+            } else {
+                const simAns = `(สมถะ) รับทราบข้อความ: ${text}`;
+                logMsg(simAns);
+                if(SYS.state === 'MAGAZINE') bakeTextToVoxels(simAns);
+            }
+        };
+
+        // --- THREE.JS ENGINE & GPU SHADER ---
+        const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x010203, 0.05);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100); camera.position.z = 10;
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('webgl-canvas'), antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(window.devicePixelRatio);
+
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        composer.addPass(new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 2.0, 0.5, 0.1));
+
+        // แกนกลาง (Idle Torus)
+        const coreMat = new THREE.MeshBasicMaterial({ color: 0x00f3ff, wireframe: true, transparent: true, opacity: 0.6 });
+        const coreShape = new THREE.Mesh(new THREE.TorusKnotGeometry(2, 0.6, 100, 16), coreMat);
+        scene.add(coreShape);
+
+        // Voxel Typography (Shader)
+        const MAX_VOXELS = 5000; 
+        const voxelGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
+        const textMat = new THREE.MeshStandardMaterial({ color: 0x00f3ff, emissive: 0x00f3ff, emissiveIntensity: 1.0 });
+        
+        const shaderUniforms = { uTime: { value: 0 }, uMorph: { value: 0.0 } };
+        textMat.onBeforeCompile = (shader) => {
+            shader.uniforms.uTime = shaderUniforms.uTime; shader.uniforms.uMorph = shaderUniforms.uMorph;
+            shader.vertexShader = `
+                uniform float uTime; uniform float uMorph;
+                attribute vec3 aTargetPos; attribute vec3 aRandomPos;
+            ` + shader.vertexShader;
+            shader.vertexShader = shader.vertexShader.replace(`#include <begin_vertex>`, `
+                vec3 idlePos = aRandomPos + vec3(sin(uTime*2.+aRandomPos.x), cos(uTime*1.5+aRandomPos.y), sin(uTime+aRandomPos.z)) * 0.5;
+                float zWave = sin(aTargetPos.x * 1.5 - uTime * 3.0) * 0.2;
+                vec3 textPos = vec3(aTargetPos.x, aTargetPos.y, aTargetPos.z + zWave);
+                vec3 transformed = mix(idlePos, textPos, uMorph);
+            `);
+        };
+
+        const voxelMesh = new THREE.InstancedMesh(voxelGeo, textMat, MAX_VOXELS);
+        const targetPosArray = new Float32Array(MAX_VOXELS * 3);
+        const randomPosArray = new Float32Array(MAX_VOXELS * 3);
+        const dummy = new THREE.Object3D();
+        
+        for(let i=0; i<MAX_VOXELS; i++) {
+            dummy.position.set((Math.random()-0.5)*12, (Math.random()-0.5)*12, (Math.random()-0.5)*12);
+            randomPosArray[i*3] = dummy.position.x; randomPosArray[i*3+1] = dummy.position.y; randomPosArray[i*3+2] = dummy.position.z;
+        }
+        voxelMesh.geometry.setAttribute('aTargetPos', new THREE.InstancedBufferAttribute(targetPosArray, 3));
+        voxelMesh.geometry.setAttribute('aRandomPos', new THREE.InstancedBufferAttribute(randomPosArray, 3));
+        voxelMesh.visible = false; scene.add(voxelMesh); scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+        // --- SHADOW DOM (THAI WORD WRAP) ---
+        function bakeTextToVoxels(text) {
+            const sd = document.getElementById('shadow-dom'); sd.innerHTML = ''; 
+            for(let char of text) sd.innerHTML += (char === ' ') ? '<span>&nbsp;</span>' : `<span>${char}</span>`;
+            
+            setTimeout(() => {
+                const spans = sd.querySelectorAll('span'); const sdRect = sd.getBoundingClientRect();
+                let voxelIdx = 0;
+                spans.forEach((span) => {
+                    if(span.innerText.trim() === '' || voxelIdx >= MAX_VOXELS) return;
+                    const rect = span.getBoundingClientRect();
+                    const scale = 0.045; 
+                    const x3d = (rect.left - sdRect.left - (sdRect.width/2)) * scale;
+                    const y3d = -(rect.top - sdRect.top - (sdRect.height/2)) * scale + 2.5; 
+                    
+                    for(let v=0; v<6; v++) { // Density per char
+                        if(voxelIdx >= MAX_VOXELS) break;
+                        targetPosArray[voxelIdx*3] = x3d + (Math.random()-0.5)*0.08;
+                        targetPosArray[voxelIdx*3+1] = y3d + (Math.random()-0.5)*0.08;
+                        targetPosArray[voxelIdx*3+2] = (Math.random()-0.5)*0.1;
+                        voxelIdx++;
+                    }
+                });
+                voxelMesh.geometry.attributes.aTargetPos.needsUpdate = true;
+                voxelMesh.count = voxelIdx; 
+            }, 50);
+        }
+
+        let targetMorph = 0.0;
+        window.switchState = (state) => {
+            if(SYS.state === state) return;
+            document.querySelectorAll('.btn-glass').forEach(b => b.classList.remove('active'));
+            document.getElementById(state === 'ZEN' ? 'btn-zen' : 'btn-mag').classList.add('active');
+            SYS.state = state;
+            if(state === 'ZEN') { targetMorph = 0.0; coreShape.visible = true; } 
+            else if (state === 'MAGAZINE') {
+                voxelMesh.visible = true; targetMorph = 1.0; coreShape.visible = false;
+                bakeTextToVoxels("ยินดีต้อนรับสู่ Voxel Cell OS สถาปัตยกรรมที่ก้าวข้ามขีดจำกัด"); 
+            }
+        };
+
+        const clock = new THREE.Clock(); let frameCount = 0; let fpsTimer = 0;
+        function render() {
+            requestAnimationFrame(render);
+            const delta = clock.getDelta(); const time = clock.getElapsedTime();
+
+            frameCount++; fpsTimer += delta;
+            if (fpsTimer >= 1.0) { 
+                let mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize/(1024*1024)) : '--';
+                document.getElementById('telemetry').innerText = `FPS: ${frameCount} | MEM: ${mem}MB`; 
+                frameCount = 0; fpsTimer = 0; 
+            }
+
+            if(coreShape.visible) {
+                coreShape.rotation.x += delta * 0.5; coreShape.rotation.y += delta * 0.8;
+                let s = 1.0 + Math.sin(time*2.0)*0.1; coreShape.scale.set(s, s, s);
+            }
+            if(voxelMesh.visible) {
+                shaderUniforms.uTime.value = time;
+                shaderUniforms.uMorph.value += (targetMorph - shaderUniforms.uMorph.value) * delta * 3.0;
+                voxelMesh.rotation.y = Math.sin(time*0.5)*0.15;
+                if(SYS.state === 'ZEN' && shaderUniforms.uMorph.value < 0.05) voxelMesh.visible = false;
+            }
+            composer.render();
+        }
+
+        // Boot
+        logMsg("บูตระบบสมการ Voxel และ AI...");
+        render();
+        initAdaptiveWebLLM();
+    </script>
+</body>
+</html>
